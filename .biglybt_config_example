@@ -1,0 +1,19 @@
+# ==========================================
+# ProtonVPN + BiglyBT Configuration Template
+# ==========================================
+
+# BiglyBT Web Remote (RPC) Credentials
+RPC_USER="your_username"
+RPC_PASS="your_password"
+
+# BiglyBT Target Machine
+PC_IP="192.168.1.100"
+RPC_PORT="9091"
+RPC_URL="http://$PC_IP:$RPC_PORT/transmission/rpc"
+
+# ProtonVPN Network Settings
+# The internal WireGuard gateway (ProtonVPN standard is 10.2.0.1)
+VPN_GW="10.2.0.1"
+
+# Asus WireGuard Client ID (e.g., "4" for wgc4, "1" for wgc1)
+WG_CLIENT_ID="4"

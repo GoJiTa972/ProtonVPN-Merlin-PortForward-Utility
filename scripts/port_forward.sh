@@ -1,35 +1,4 @@
 #!/bin/sh
-# =================================================================
-# ProtonVPN + BiglyBT Port Forward Deployment (v2 - NAT Routing)
-# Author: GoJiTa972 (Xavier Chamoiseau)
-# =================================================================
-
-CONFIG_FILE="/jffs/scripts/.biglybt_config"
-
-echo "Starting deployment..."
-
-if [ ! -f "$CONFIG_FILE" ]; then
-    echo "Error: Config file missing at $CONFIG_FILE. Deployment aborted."
-    echo "Please copy .biglybt_config.example to $CONFIG_FILE and fill in your details."
-    exit 1
-fi
-
-. "$CONFIG_FILE"
-
-# --- 0. BACKUP EXISTING SCRIPTS ---
-echo "Running pre-flight backups..."
-TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-
-[ -f /jffs/scripts/port_forward.sh ] && cp /jffs/scripts/port_forward.sh /jffs/scripts/port_forward.sh.bak_$TIMESTAMP
-[ -f /jffs/scripts/wgclient-start ] && cp /jffs/scripts/wgclient-start /jffs/scripts/wgclient-start.bak_$TIMESTAMP
-[ -f /jffs/scripts/wgclient-stop ] && cp /jffs/scripts/wgclient-stop /jffs/scripts/wgclient-stop.bak_$TIMESTAMP
-echo "Backups secured with timestamp: $TIMESTAMP"
-
-# --- 1. BUILD THE MAIN SCRIPT ---
-echo "Writing /jffs/scripts/port_forward.sh..."
-
-cat << 'EOF' > /jffs/scripts/port_forward.sh
-#!/bin/sh
 
 CONFIG_FILE="/jffs/scripts/.biglybt_config"
 if [ -f "$CONFIG_FILE" ]; then
@@ -85,45 +54,3 @@ if [ -n "$CURRENT_PORT" ]; then
 else
     logger -t "PortForward" "Failed to retrieve port from natpmpc."
 fi
-EOF
-
-chmod +x /jffs/scripts/port_forward.sh
-
-# --- 2. HOOK WGCLIENT-START ---
-echo "Checking wgclient-start..."
-if [ ! -f /jffs/scripts/wgclient-start ]; then
-    echo "#!/bin/sh" > /jffs/scripts/wgclient-start
-fi
-
-if ! grep -q "port_forward.sh" /jffs/scripts/wgclient-start; then
-    echo "Injecting start hook for wgc$WG_CLIENT_ID..."
-    cat << EOF >> /jffs/scripts/wgclient-start
-
-# --- ProtonVPN Port Forwarding Hook ---
-if [ "\$1" = "$WG_CLIENT_ID" ]; then
-    killall port_forward.sh 2>/dev/null
-    nohup /jffs/scripts/port_forward.sh > /dev/null 2>&1 &
-fi
-EOF
-fi
-chmod +x /jffs/scripts/wgclient-start
-
-# --- 3. HOOK WGCLIENT-STOP ---
-echo "Checking wgclient-stop..."
-if [ ! -f /jffs/scripts/wgclient-stop ]; then
-    echo "#!/bin/sh" > /jffs/scripts/wgclient-stop
-fi
-
-if ! grep -q "port_forward.sh" /jffs/scripts/wgclient-stop; then
-    echo "Injecting stop hook for wgc$WG_CLIENT_ID..."
-    cat << EOF >> /jffs/scripts/wgclient-stop
-
-# --- ProtonVPN Port Forwarding Hook ---
-if [ "\$1" = "$WG_CLIENT_ID" ]; then
-    killall port_forward.sh 2>/dev/null
-fi
-EOF
-fi
-chmod +x /jffs/scripts/wgclient-stop
-
-echo "Deployment Complete! Scripts and hooks are live for WireGuard Client $WG_CLIENT_ID."

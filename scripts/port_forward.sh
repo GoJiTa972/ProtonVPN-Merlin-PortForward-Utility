@@ -24,8 +24,19 @@ if [ -n "$CURRENT_PORT" ]; then
         TR_SESSION=$(curl -k -s -i --connect-timeout 3 -u "$RPC_USER:$RPC_PASS" "$RPC_URL" 2>/dev/null | grep -i "X-Transmission-Session-Id:" | awk '{print $2}' | tr -d '\r')
             
         if [ -n "$TR_SESSION" ]; then
-            # Push the port to BiglyBT RPC
-            HTTP_CODE=$(curl -k -s -o /dev/null -w "%{http_code}" --connect-timeout 3 -u "$RPC_USER:$RPC_PASS" -H "X-Transmission-Session-Id: $TR_SESSION" -d '{"method":"session-set","arguments":{"peer-port":'$CURRENT_PORT'}}' "$RPC_URL")
+            
+            # --- BUILD DYNAMIC JSON PAYLOAD ---
+            ARGUMENTS='"peer-port": '$CURRENT_PORT
+            
+            [ -n "$LIMIT_GLOBAL" ] && ARGUMENTS="${ARGUMENTS}, \"peer-limit-global\": $LIMIT_GLOBAL"
+            [ -n "$LIMIT_PER_TORRENT" ] && ARGUMENTS="${ARGUMENTS}, \"peer-limit-per-torrent\": $LIMIT_PER_TORRENT"
+            [ -n "$LIMIT_UP_KBPS" ] && ARGUMENTS="${ARGUMENTS}, \"speed-limit-up\": $LIMIT_UP_KBPS"
+            [ -n "$LIMIT_UP_ENABLED" ] && ARGUMENTS="${ARGUMENTS}, \"speed-limit-up-enabled\": $LIMIT_UP_ENABLED"
+            
+            PAYLOAD='{"method":"session-set","arguments":{'$ARGUMENTS'}}'
+
+            # Push the port and limits to BiglyBT RPC
+            HTTP_CODE=$(curl -k -s -o /dev/null -w "%{http_code}" --connect-timeout 3 -u "$RPC_USER:$RPC_PASS" -H "X-Transmission-Session-Id: $TR_SESSION" -d "$PAYLOAD" "$RPC_URL")
             
             # --- FIREWALL HOLE PUNCH ---
             # Flush existing rules to prevent duplicates
@@ -40,7 +51,7 @@ if [ -n "$CURRENT_PORT" ]; then
             iptables -I FORWARD -i wgc$WG_CLIENT_ID -p tcp -d $PC_IP --dport $CURRENT_PORT -j ACCEPT
             iptables -I FORWARD -i wgc$WG_CLIENT_ID -p udp -d $PC_IP --dport $CURRENT_PORT -j ACCEPT
             
-            logger -t "PortForward" "BiglyBT API (HTTP: $HTTP_CODE) | Firewall routed port $CURRENT_PORT to $PC_IP."
+            logger -t "PortForward" "BiglyBT API (HTTP: $HTTP_CODE) limits applied | Firewall routed port $CURRENT_PORT to $PC_IP."
             break
         fi
         

@@ -1,10 +1,13 @@
-# Asuswrt-Merlin ProtonVPN Port Forwarding Auto-Deploy (v2)
+# Asuswrt-Merlin ProtonVPN Port Forwarding Auto-Deploy (v2.1)
 
 An automated deployment architecture for Asuswrt-Merlin routers. This script dynamically retrieves assigned port forwarding numbers from ProtonVPN's NAT-PMP servers and seamlessly injects them into a local BiglyBT instance via RPC, completely bypassing the Asus VPN Director's split-tunneling inbound firewall limitations.
+
+**New in v2.1:** Automated Traffic Shaping. Dynamically pushes connection and speed limits to BiglyBT alongside the port update to prevent OS-level socket exhaustion when routing high-connection P2P traffic through the router's embedded ARM processor.
 
 ## Features
 
 * **Aggressive NAT Hole-Punching:** Asus VPN Director's strict inbound firewall blindly drops incoming torrent requests. This script dynamically injects precise `iptables` PREROUTING and FORWARD rules to route the port directly to your local PC, guaranteeing maximum upload speeds.
+* **Dynamic TCP Socket Protection:** Automatically injects peer and speed limits into BiglyBT via RPC. This prevents `java.net.SocketException` (buffer space available) crashes on Windows by clamping down global connections when falling back from a high-power desktop VPN tunnel to the router's embedded VPN tunnel.
 * **The "Patient Loop":** Includes a 30-minute automated retry loop. If the router connects to the VPN but the target PC/BiglyBT is offline, the script waits silently and pushes the payload the moment BiglyBT comes online.
 * **BusyBox Native:** Completely compatible with Asuswrt-Merlin's embedded shell. Uses native `awk` to ensure zero silent failures on router hardware.
 * **Non-Destructive Deployment:** Automatically generates collision-proof, chronologically timestamped backups of your existing `wgclient` scripts before injecting new, non-blocking hooks.
@@ -13,13 +16,13 @@ An automated deployment architecture for Asuswrt-Merlin routers. This script dyn
 
 1. **Router:** Asus router running Asuswrt-Merlin firmware.
 2. **VPN:** ProtonVPN Plus account with Port Forwarding enabled on a WireGuard connection.
-3. **Client:** BiglyBT with the Web Remote (RPC) plugin enabled.
+3. **Client:** BiglyBT with the Web Remote (Transmission RPC) plugin enabled.
 4. **Network:** Target PC must be routed through the WireGuard tunnel via the Asus VPN Director (with NAT enabled).
 
 ## Installation & Setup
 
-### 1. Configure Credentials
-Copy the example configuration file to your router and add your specific credentials.
+### 1. Configure Credentials & Limits
+Copy the example configuration file to your router and add your specific credentials. You can also configure your optional Session Limits here to protect your network stack.
 
 ```bash
 cp .biglybt_config.example /jffs/scripts/.biglybt_config
@@ -53,7 +56,12 @@ Toggle your WireGuard client off and on in the Asus GUI. Check your system logs 
 grep "PortForward" /tmp/syslog.log
 ```
 
-Look for: `PortForward: BiglyBT API (HTTP: 200) | Firewall routed port XXXXX to 192.168.1.XXX.`
+Look for: `PortForward: BiglyBT API (HTTP: 200) limits applied | Firewall routed port XXXXX to 192.168.1.XXX.`
+
+## The "Hybrid" Workflow (Burst vs. Router Mode)
+This utility perfectly supports users who switch between the native desktop ProtonVPN app and the Asus router VPN:
+1. **Burst Mode (Desktop App ON):** Use your PC's desktop CPU to handle massive peer connections and encryption overhead for high-speed downloads without limits.
+2. **Router Mode (Desktop App OFF):** Let Windows automatically fall back to the Asus router gateway. The router establishes the tunnel, runs this script, forwards the incoming port, and explicitly clamps BiglyBT's active connections down to a safe limit (e.g., 200 peers) so your router and Windows TCP stack can handle passive 24/7 background seeding without crashing.
 
 ## Maintenance & Compatibility
 

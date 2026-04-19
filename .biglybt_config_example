@@ -17,3 +17,12 @@ VPN_GW="10.2.0.1"
 
 # Asus WireGuard Client ID (e.g., "4" for wgc4, "1" for wgc1)
 WG_CLIENT_ID="4"
+
+# --- Router Mode Session Limits ---
+# These limits are applied to prevent the Asus router and Windows TCP stack 
+# from crashing due to socket exhaustion while on the VPN.
+# Leave a variable commented out (#) to ignore it.
+LIMIT_GLOBAL="200"
+LIMIT_PER_TORRENT="50"
+LIMIT_UP_KBPS="2000"
+LIMIT_UP_ENABLED="true"

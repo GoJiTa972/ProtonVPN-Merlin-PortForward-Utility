@@ -1,6 +1,6 @@
 #!/bin/sh
 # =================================================================
-# ProtonVPN + BiglyBT Port Forward Deployment (v2 - NAT Routing)
+# ProtonVPN + BiglyBT Port Forward Deployment (v2.2)
 # Author: GoJiTa972 (Xavier Chamoiseau)
 # =================================================================
 
@@ -10,7 +10,7 @@ echo "Starting deployment..."
 
 if [ ! -f "$CONFIG_FILE" ]; then
     echo "Error: Config file missing at $CONFIG_FILE. Deployment aborted."
-    echo "Please copy .biglybt_config.example to $CONFIG_FILE and fill in your details."
+    echo "Please copy .biglybt_config_example to $CONFIG_FILE and fill in your details."
     exit 1
 fi
 
@@ -41,6 +41,12 @@ fi
 
 # Allow tunnel to stabilize
 sleep 10
+
+# Entware / natpmpc validation
+if ! which natpmpc >/dev/null 2>&1; then
+    logger -t "PortForward" "Error: natpmpc not found. Ensure Entware is mounted and natpmpc is installed."
+    exit 1
+fi
 
 CURRENT_PORT=$(natpmpc -a 1 0 udp 60 -g "$VPN_GW" | grep -i "Mapped public port" | awk '{print $4}')
 
@@ -111,7 +117,7 @@ if ! grep -q "port_forward.sh" /jffs/scripts/wgclient-start; then
     cat << EOF >> /jffs/scripts/wgclient-start
 
 # --- ProtonVPN Port Forwarding Hook ---
-if [ "\$1" = "$WG_CLIENT_ID" ]; then
+if [ "\$1" = "$WG_CLIENT_ID" ] || [ "\$1" = "wgc$WG_CLIENT_ID" ]; then
     killall port_forward.sh 2>/dev/null
     nohup /jffs/scripts/port_forward.sh > /dev/null 2>&1 &
 fi
@@ -130,7 +136,7 @@ if ! grep -q "port_forward.sh" /jffs/scripts/wgclient-stop; then
     cat << EOF >> /jffs/scripts/wgclient-stop
 
 # --- ProtonVPN Port Forwarding Hook ---
-if [ "\$1" = "$WG_CLIENT_ID" ]; then
+if [ "\$1" = "$WG_CLIENT_ID" ] || [ "\$1" = "wgc$WG_CLIENT_ID" ]; then
     killall port_forward.sh 2>/dev/null
 fi
 EOF

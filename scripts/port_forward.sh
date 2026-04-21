@@ -11,6 +11,12 @@ fi
 # Allow tunnel to stabilize
 sleep 10
 
+# Entware / natpmpc validation
+if ! which natpmpc >/dev/null 2>&1; then
+    logger -t "PortForward" "Error: natpmpc not found. Ensure Entware is mounted and natpmpc is installed."
+    exit 1
+fi
+
 CURRENT_PORT=$(natpmpc -a 1 0 udp 60 -g "$VPN_GW" | grep -i "Mapped public port" | awk '{print $4}')
 
 if [ -n "$CURRENT_PORT" ]; then

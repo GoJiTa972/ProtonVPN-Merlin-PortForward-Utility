@@ -1,8 +1,10 @@
-# Asuswrt-Merlin ProtonVPN Port Forwarding Auto-Deploy (v2.1)
+# Asuswrt-Merlin ProtonVPN Port Forwarding Auto-Deploy (v2.2)
 
 An automated deployment architecture for Asuswrt-Merlin routers. This script dynamically retrieves assigned port forwarding numbers from ProtonVPN's NAT-PMP servers and seamlessly injects them into a local BiglyBT instance via RPC, completely bypassing the Asus VPN Director's split-tunneling inbound firewall limitations.
 
-**New in v2.1:** Automated Traffic Shaping. Dynamically pushes connection and speed limits to BiglyBT alongside the port update to prevent OS-level socket exhaustion when routing high-connection P2P traffic through the router's embedded ARM processor.
+**New in v2.2:** * **Universal Firmware Compatibility:** Automatically supports both older Asuswrt-Merlin 388.x branches (which pass raw integer arguments) and the new 3.0.0.6 SDN branches (which pass full interface strings like `wgc4`), making it hardware-agnostic for migrations between routers like the RT-AX86U and RT-AX86U Pro.
+* **Entware Validation:** Explicitly checks for the presence of `natpmpc` before attempting to pull a port, preventing silent timeouts if USB drives fail to mount.
+* **Automated Traffic Shaping:** Dynamically pushes connection and speed limits to BiglyBT alongside the port update to prevent OS-level socket exhaustion when routing high-connection P2P traffic through the router's embedded ARM processor.
 
 ## Features
 
@@ -15,9 +17,10 @@ An automated deployment architecture for Asuswrt-Merlin routers. This script dyn
 ## Prerequisites
 
 1. **Router:** Asus router running Asuswrt-Merlin firmware.
-2. **VPN:** ProtonVPN Plus account with Port Forwarding enabled on a WireGuard connection.
-3. **Client:** BiglyBT with the Web Remote (Transmission RPC) plugin enabled.
-4. **Network:** Target PC must be routed through the WireGuard tunnel via the Asus VPN Director (with NAT enabled).
+2. **Entware:** You must have Entware installed on a mounted USB drive, and the `natpmpc` package must be installed (`opkg install natpmpc`).
+3. **VPN:** ProtonVPN Plus account with Port Forwarding enabled on a WireGuard connection.
+4. **Client:** BiglyBT with the Web Remote (Transmission RPC) plugin enabled.
+5. **Network:** Target PC must be routed through the WireGuard tunnel via the Asus VPN Director (with NAT enabled).
 
 ## Installation & Setup
 

@@ -1,6 +1,6 @@
 #!/bin/sh
 # =================================================================
-# ProtonVPN + BiglyBT Port Forward Deployment (v2.2)
+# ProtonVPN + BiglyBT Port Forward Deployment (v2.1.2)
 # Author: GoJiTa972 (Xavier Chamoiseau)
 # =================================================================
 
@@ -41,6 +41,10 @@ fi
 
 # Allow tunnel to stabilize
 sleep 10
+
+# --- FIRMWARE 3.0.0.6 ROUTING FIX ---
+# Ensure the router's main routing table can reach the VPN gateway
+ip route add "$VPN_GW" dev "wgc$WG_CLIENT_ID" 2>/dev/null
 
 # Entware / natpmpc validation
 if ! which natpmpc >/dev/null 2>&1; then

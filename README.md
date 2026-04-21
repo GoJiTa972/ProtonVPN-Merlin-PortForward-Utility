@@ -1,8 +1,9 @@
-# Asuswrt-Merlin ProtonVPN Port Forwarding Auto-Deploy (v2.2)
+# Asuswrt-Merlin ProtonVPN Port Forwarding Auto-Deploy (v2.1.2)
 
 An automated deployment architecture for Asuswrt-Merlin routers. This script dynamically retrieves assigned port forwarding numbers from ProtonVPN's NAT-PMP servers and seamlessly injects them into a local BiglyBT instance via RPC, completely bypassing the Asus VPN Director's split-tunneling inbound firewall limitations.
 
-**New in v2.2:** * **Universal Firmware Compatibility:** Automatically supports both older Asuswrt-Merlin 388.x branches (which pass raw integer arguments) and the new 3.0.0.6 SDN branches (which pass full interface strings like `wgc4`), making it hardware-agnostic for migrations between routers like the RT-AX86U and RT-AX86U Pro.
+**New in v2.1.2:** * **Firmware 3.0.0.6 (SDN) Routing Fix:** Resolves NAT-PMP timeout errors on the newer Asuswrt-Merlin 3.0.0.6 branches (e.g., RT-AX86U Pro). The script now dynamically bridges the isolated `main` routing table to the VPN Director to ensure the router's root shell can successfully reach the ProtonVPN gateway.
+* **Universal Hook Compatibility:** Automatically supports both older Asuswrt-Merlin 388.x branches (which pass raw integer arguments) and the new 3.0.0.6 SDN branches (which pass full interface strings like `wgc4`).
 * **Entware Validation:** Explicitly checks for the presence of `natpmpc` before attempting to pull a port, preventing silent timeouts if USB drives fail to mount.
 * **Automated Traffic Shaping:** Dynamically pushes connection and speed limits to BiglyBT alongside the port update to prevent OS-level socket exhaustion when routing high-connection P2P traffic through the router's embedded ARM processor.
 

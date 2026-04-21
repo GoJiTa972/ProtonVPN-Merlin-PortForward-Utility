@@ -11,6 +11,16 @@ fi
 # Allow tunnel to stabilize
 sleep 10
 
+# --- FIRMWARE 3.0.0.6 ROUTING FIX ---
+# Ensure the router's main routing table can reach the VPN gateway
+ip route add "$VPN_GW" dev "wgc$WG_CLIENT_ID" 2>/dev/null
+
+# Entware / natpmpc validation
+if ! which natpmpc >/dev/null 2>&1; then
+    logger -t "PortForward" "Error: natpmpc not found. Ensure Entware is mounted and natpmpc is installed."
+    exit 1
+fi
+
 CURRENT_PORT=$(natpmpc -a 1 0 udp 60 -g "$VPN_GW" | grep -i "Mapped public port" | awk '{print $4}')
 
 if [ -n "$CURRENT_PORT" ]; then

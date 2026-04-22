@@ -1,6 +1,6 @@
 #!/bin/sh
 # =================================================================
-# ProtonVPN + BiglyBT Port Forward Deployment (v2.2.2)
+# ProtonVPN + BiglyBT Port Forward Deployment (v2.3.0)
 # Author: GoJiTa972 (Xavier Chamoiseau)
 # =================================================================
 
@@ -38,19 +38,6 @@ else
     logger -t "PortForward" "Error: Config file missing. Aborting."
     exit 1
 fi
-
-# --- GRACEFUL CLEANUP TRAP ---
-cleanup() {
-    if [ -n "$CURRENT_PORT" ]; then
-        logger -t "PortForward" "Termination signal received. Cleaning up iptables rules for port $CURRENT_PORT..."
-        iptables -t nat -D PREROUTING -i wgc$WG_CLIENT_ID -p tcp --dport $CURRENT_PORT -j DNAT --to-destination $PC_IP 2>/dev/null
-        iptables -t nat -D PREROUTING -i wgc$WG_CLIENT_ID -p udp --dport $CURRENT_PORT -j DNAT --to-destination $PC_IP 2>/dev/null
-        iptables -D FORWARD -i wgc$WG_CLIENT_ID -p tcp -d $PC_IP --dport $CURRENT_PORT -j ACCEPT 2>/dev/null
-        iptables -D FORWARD -i wgc$WG_CLIENT_ID -p udp -d $PC_IP --dport $CURRENT_PORT -j ACCEPT 2>/dev/null
-    fi
-    exit 0
-}
-trap cleanup TERM INT
 
 # Allow tunnel to stabilize
 sleep 10
@@ -105,6 +92,10 @@ if [ -n "$CURRENT_PORT" ]; then
             iptables -I FORWARD -i wgc$WG_CLIENT_ID -p tcp -d $PC_IP --dport $CURRENT_PORT -j ACCEPT
             iptables -I FORWARD -i wgc$WG_CLIENT_ID -p udp -d $PC_IP --dport $CURRENT_PORT -j ACCEPT
             
+            # --- SAVE STATE ---
+            # Save the active port to a volatile run file so the stop hook can clean it up later
+            echo "$CURRENT_PORT" > "/var/run/proton_pf_wgc$WG_CLIENT_ID.port"
+            
             logger -t "PortForward" "BiglyBT API (HTTP: $HTTP_CODE) limits applied | Firewall routed port $CURRENT_PORT to $PC_IP."
             break
         fi
@@ -123,7 +114,7 @@ EOF
 
 chmod +x /jffs/scripts/port_forward.sh
 
-# --- 2. HOOK WGCLIENT-START (Idempotent Injection) ---
+# --- 2. HOOK WGCLIENT-START ---
 echo "Checking wgclient-start..."
 if [ ! -f /jffs/scripts/wgclient-start ]; then
     echo "#!/bin/sh" > /jffs/scripts/wgclient-start
@@ -131,24 +122,23 @@ fi
 
 # Purge legacy unmarked hooks (v2.1.2 and older)
 sed -i '/# --- ProtonVPN Port Forwarding Hook ---/,/^fi/d' /jffs/scripts/wgclient-start
-# Purge any existing marked hooks
+# Purge any existing marked hooks (Idempotent cleanup)
 sed -i '/# --- BEGIN PROTONVPN PF HOOK ---/,/# --- END PROTONVPN PF HOOK ---/d' /jffs/scripts/wgclient-start
 
-echo "Injecting fresh start hook for wgc$WG_CLIENT_ID..."
 cat << EOF >> /jffs/scripts/wgclient-start
 
 # --- BEGIN PROTONVPN PF HOOK ---
 # Injected by deploy_proton_pf.sh - Do not modify these marker lines
 if [ "\$1" = "$WG_CLIENT_ID" ] || [ "\$1" = "wgc$WG_CLIENT_ID" ]; then
     logger -t "PortForward" "WireGuard wgc$WG_CLIENT_ID starting. Launching background script..."
-    for pid in \$(ps | grep '[p]ort_forward.sh' | awk '{print \$1}'); do kill -15 \$pid 2>/dev/null; done
+    killall port_forward.sh 2>/dev/null
     nohup /jffs/scripts/port_forward.sh > /dev/null 2>&1 &
 fi
 # --- END PROTONVPN PF HOOK ---
 EOF
 chmod +x /jffs/scripts/wgclient-start
 
-# --- 3. HOOK WGCLIENT-STOP (Idempotent Injection) ---
+# --- 3. HOOK WGCLIENT-STOP (STATE PARSER) ---
 echo "Checking wgclient-stop..."
 if [ ! -f /jffs/scripts/wgclient-stop ]; then
     echo "#!/bin/sh" > /jffs/scripts/wgclient-stop
@@ -156,17 +146,28 @@ fi
 
 # Purge legacy unmarked hooks (v2.1.2 and older)
 sed -i '/# --- ProtonVPN Port Forwarding Hook ---/,/^fi/d' /jffs/scripts/wgclient-stop
-# Purge any existing marked hooks
+# Purge any existing marked hooks (Idempotent cleanup)
 sed -i '/# --- BEGIN PROTONVPN PF HOOK ---/,/# --- END PROTONVPN PF HOOK ---/d' /jffs/scripts/wgclient-stop
 
-echo "Injecting fresh stop hook for wgc$WG_CLIENT_ID..."
 cat << EOF >> /jffs/scripts/wgclient-stop
 
 # --- BEGIN PROTONVPN PF HOOK ---
 # Injected by deploy_proton_pf.sh - Do not modify these marker lines
 if [ "\$1" = "$WG_CLIENT_ID" ] || [ "\$1" = "wgc$WG_CLIENT_ID" ]; then
-    logger -t "PortForward" "WireGuard wgc$WG_CLIENT_ID is down. Terminating background script..."
-    for pid in \$(ps | grep '[p]ort_forward.sh' | awk '{print \$1}'); do kill -15 \$pid 2>/dev/null; done
+    logger -t "PortForward" "WireGuard wgc$WG_CLIENT_ID is down. Cleaning up processes and firewall..."
+    killall port_forward.sh 2>/dev/null
+    
+    # Read the saved port state and dynamically flush the iptables rules
+    STATE_FILE="/var/run/proton_pf_wgc$WG_CLIENT_ID.port"
+    if [ -f "\$STATE_FILE" ]; then
+        OLD_PORT=\$(cat "\$STATE_FILE")
+        logger -t "PortForward" "Flushing iptables rules for port \$OLD_PORT..."
+        iptables -t nat -D PREROUTING -i wgc$WG_CLIENT_ID -p tcp --dport \$OLD_PORT -j DNAT --to-destination $PC_IP 2>/dev/null
+        iptables -t nat -D PREROUTING -i wgc$WG_CLIENT_ID -p udp --dport \$OLD_PORT -j DNAT --to-destination $PC_IP 2>/dev/null
+        iptables -D FORWARD -i wgc$WG_CLIENT_ID -p tcp -d $PC_IP --dport \$OLD_PORT -j ACCEPT 2>/dev/null
+        iptables -D FORWARD -i wgc$WG_CLIENT_ID -p udp -d $PC_IP --dport \$OLD_PORT -j ACCEPT 2>/dev/null
+        rm -f "\$STATE_FILE"
+    fi
 fi
 # --- END PROTONVPN PF HOOK ---
 EOF

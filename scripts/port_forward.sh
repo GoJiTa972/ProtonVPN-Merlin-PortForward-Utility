@@ -8,19 +8,6 @@ else
     exit 1
 fi
 
-# --- GRACEFUL CLEANUP TRAP ---
-cleanup() {
-    if [ -n "$CURRENT_PORT" ]; then
-        logger -t "PortForward" "Termination signal received. Cleaning up iptables rules for port $CURRENT_PORT..."
-        iptables -t nat -D PREROUTING -i wgc$WG_CLIENT_ID -p tcp --dport $CURRENT_PORT -j DNAT --to-destination $PC_IP 2>/dev/null
-        iptables -t nat -D PREROUTING -i wgc$WG_CLIENT_ID -p udp --dport $CURRENT_PORT -j DNAT --to-destination $PC_IP 2>/dev/null
-        iptables -D FORWARD -i wgc$WG_CLIENT_ID -p tcp -d $PC_IP --dport $CURRENT_PORT -j ACCEPT 2>/dev/null
-        iptables -D FORWARD -i wgc$WG_CLIENT_ID -p udp -d $PC_IP --dport $CURRENT_PORT -j ACCEPT 2>/dev/null
-    fi
-    exit 0
-}
-trap cleanup TERM INT
-
 # Allow tunnel to stabilize
 sleep 10
 
@@ -73,6 +60,10 @@ if [ -n "$CURRENT_PORT" ]; then
             iptables -t nat -I PREROUTING -i wgc$WG_CLIENT_ID -p udp --dport $CURRENT_PORT -j DNAT --to-destination $PC_IP
             iptables -I FORWARD -i wgc$WG_CLIENT_ID -p tcp -d $PC_IP --dport $CURRENT_PORT -j ACCEPT
             iptables -I FORWARD -i wgc$WG_CLIENT_ID -p udp -d $PC_IP --dport $CURRENT_PORT -j ACCEPT
+            
+            # --- SAVE STATE ---
+            # Save the active port to a volatile run file so the stop hook can clean it up later
+            echo "$CURRENT_PORT" > "/var/run/proton_pf_wgc$WG_CLIENT_ID.port"
             
             logger -t "PortForward" "BiglyBT API (HTTP: $HTTP_CODE) limits applied | Firewall routed port $CURRENT_PORT to $PC_IP."
             break

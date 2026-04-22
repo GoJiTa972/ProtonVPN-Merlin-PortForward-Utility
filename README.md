@@ -1,16 +1,17 @@
-# Asuswrt-Merlin ProtonVPN Port Forwarding Auto-Deploy (v2.2.0)
+# Asuswrt-Merlin ProtonVPN Port Forwarding Auto-Deploy (v2.3.0)
 
 An automated deployment architecture for Asuswrt-Merlin routers. This script dynamically retrieves assigned port forwarding numbers from ProtonVPN's NAT-PMP servers and seamlessly injects them into a local BiglyBT instance via RPC, completely bypassing the Asus VPN Director's split-tunneling inbound firewall limitations.
 
-**New in v2.2.0 (The Deployment Update):** * **Idempotent Hook Injection:** The deployment script now uses strict `sed` block markers. You can run the installer as many times as you want without duplicating code or leaving ghost processes behind.
-* **Seamless Legacy Upgrades:** Automatically hunts down and safely purges older, un-marked `wgclient` hooks from previous versions (v2.1.2 and below) before installing the new engine.
-* **Firmware 3.0.0.6 (SDN) Routing Fix:** Resolves NAT-PMP timeout errors on the newer Asuswrt-Merlin 3.0.0.6 branches (e.g., RT-AX86U Pro). The script dynamically bridges the isolated `main` routing table to the VPN Director to ensure the router's root shell can successfully reach the ProtonVPN gateway.
+**New in v2.3.0 (The Architecture Update):** * **State-File Architecture:** The script lifecycle has been completely overhauled. It now writes the active forwarded port to a volatile state file (`/var/run/proton_pf_wgcX.port`) and gracefully exits. This permanently eliminates "zombie" background processes.
+* **Bulletproof Firewall Cleanup:** When the VPN connection is toggled off, the `wgclient-stop` hook dynamically reads the state file and cleanly flushes the exact forwarded port from your router's `iptables`. This guarantees zero routing or memory leaks over time.
+* **Idempotent Hook Injection:** The deployment engine uses strict `sed` block markers. You can run the installer safely over existing setups without duplicating code or leaving ghost processes behind. Automatically hunts down and safely purges legacy hooks from previous versions.
+* **Firmware 3.0.0.6 (SDN) Native:** Fully bridges the isolated `main` routing table to the VPN Director to ensure the router's root shell can successfully reach the ProtonVPN gateway on newer Asuswrt-Merlin branches (e.g., RT-AX86U Pro).
 
 ## Features
 
 * **Aggressive NAT Hole-Punching:** Asus VPN Director's strict inbound firewall blindly drops incoming torrent requests. This script dynamically injects precise `iptables` PREROUTING and FORWARD rules to route the port directly to your local PC, guaranteeing maximum upload speeds.
 * **Dynamic TCP Socket Protection:** Automatically injects peer and speed limits into BiglyBT via RPC. This prevents `java.net.SocketException` crashes on Windows by clamping down global connections when falling back from a high-power desktop VPN tunnel to the router's embedded VPN tunnel.
-* **The "Patient Loop":** Includes a 30-minute automated retry loop. If the router connects to the VPN but the target PC/BiglyBT is offline, the script waits silently and pushes the payload the moment BiglyBT comes online.
+* **The "Patient Loop":** Includes a 30-minute automated retry loop. If the router connects to the VPN but the target PC/BiglyBT is offline, the script waits silently and pushes the payload the moment BiglyBT comes online, then safely terminates itself.
 * **BusyBox Native:** Completely compatible with Asuswrt-Merlin's embedded shell. Uses native `awk` and `sed` to ensure zero silent failures on router hardware.
 * **Non-Destructive Deployment:** Automatically generates collision-proof, chronologically timestamped backups of your existing `wgclient` scripts before executing any upgrades.
 
@@ -37,6 +38,8 @@ Secure the file so your credentials aren't exposed:
 ```bash
 chmod 600 /jffs/scripts/.biglybt_config
 ```
+
+**Note:** Ensure you define `WG_CLIENT_ID` (e.g., `4` for `wgc4`) in your config file so the deployment script knows which interface to hook into!
 
 ### 2. Deploy
 Transfer the main script to your router via SCP:
@@ -70,7 +73,7 @@ This utility perfectly supports users who switch between the native desktop Prot
 
 **Important Note on `spdMerlin` (and other amtm addons):** Third-party router scripts like `spdMerlin` occasionally overwrite or aggressively inject their own blocking code into the router's `wgclient-start` and `wgclient-stop` event scripts during their update cycles. 
 
-If you update `spdMerlin` and notice your port forwarding has suddenly stopped working, SSH into your router and verify that your `port_forward.sh` hooks are still present in those two files. If an update wiped them out, simply re-run the `deploy_proton_pf.sh` script to safely re-inject the hooks.
+If you update `spdMerlin` and notice your port forwarding has suddenly stopped working, SSH into your router and verify that your `port_forward.sh` hooks are still present. If an update wiped them out, simply re-run the `deploy_proton_pf.sh` script to safely re-inject the hooks.
 
 ## Rollback
 If you ever need to revert to your previous setup, simply check the `/jffs/scripts/` directory for your chronologically stamped backups (e.g., `wgclient-start.bak_YYYYMMDD_HHMMSS`), delete the active scripts, and rename the backups by removing the `.bak_timestamp` extension.

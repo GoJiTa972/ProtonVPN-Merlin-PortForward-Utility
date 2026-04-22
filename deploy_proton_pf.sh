@@ -1,6 +1,6 @@
 #!/bin/sh
 # =================================================================
-# ProtonVPN + BiglyBT Port Forward Deployment (v2.2.0)
+# ProtonVPN + BiglyBT Port Forward Deployment (v2.2.1)
 # Author: GoJiTa972 (Xavier Chamoiseau)
 # =================================================================
 
@@ -127,7 +127,8 @@ cat << EOF >> /jffs/scripts/wgclient-start
 # --- BEGIN PROTONVPN PF HOOK ---
 # Injected by deploy_proton_pf.sh - Do not modify these marker lines
 if [ "\$1" = "$WG_CLIENT_ID" ] || [ "\$1" = "wgc$WG_CLIENT_ID" ]; then
-    killall port_forward.sh 2>/dev/null
+    logger -t "PortForward" "WireGuard wgc$WG_CLIENT_ID starting. Launching background script..."
+    for pid in \$(ps | grep '[p]ort_forward.sh' | awk '{print \$1}'); do kill -9 \$pid 2>/dev/null; done
     nohup /jffs/scripts/port_forward.sh > /dev/null 2>&1 &
 fi
 # --- END PROTONVPN PF HOOK ---
@@ -151,7 +152,8 @@ cat << EOF >> /jffs/scripts/wgclient-stop
 # --- BEGIN PROTONVPN PF HOOK ---
 # Injected by deploy_proton_pf.sh - Do not modify these marker lines
 if [ "\$1" = "$WG_CLIENT_ID" ] || [ "\$1" = "wgc$WG_CLIENT_ID" ]; then
-    killall port_forward.sh 2>/dev/null
+    logger -t "PortForward" "WireGuard wgc$WG_CLIENT_ID is down. Terminating background script..."
+    for pid in \$(ps | grep '[p]ort_forward.sh' | awk '{print \$1}'); do kill -9 \$pid 2>/dev/null; done
 fi
 # --- END PROTONVPN PF HOOK ---
 EOF

@@ -1,19 +1,18 @@
-# Asuswrt-Merlin ProtonVPN Port Forwarding Auto-Deploy (v2.1.2)
+# Asuswrt-Merlin ProtonVPN Port Forwarding Auto-Deploy (v2.2.0)
 
 An automated deployment architecture for Asuswrt-Merlin routers. This script dynamically retrieves assigned port forwarding numbers from ProtonVPN's NAT-PMP servers and seamlessly injects them into a local BiglyBT instance via RPC, completely bypassing the Asus VPN Director's split-tunneling inbound firewall limitations.
 
-**New in v2.1.2:** * **Firmware 3.0.0.6 (SDN) Routing Fix:** Resolves NAT-PMP timeout errors on the newer Asuswrt-Merlin 3.0.0.6 branches (e.g., RT-AX86U Pro). The script now dynamically bridges the isolated `main` routing table to the VPN Director to ensure the router's root shell can successfully reach the ProtonVPN gateway.
-* **Universal Hook Compatibility:** Automatically supports both older Asuswrt-Merlin 388.x branches (which pass raw integer arguments) and the new 3.0.0.6 SDN branches (which pass full interface strings like `wgc4`).
-* **Entware Validation:** Explicitly checks for the presence of `natpmpc` before attempting to pull a port, preventing silent timeouts if USB drives fail to mount.
-* **Automated Traffic Shaping:** Dynamically pushes connection and speed limits to BiglyBT alongside the port update to prevent OS-level socket exhaustion when routing high-connection P2P traffic through the router's embedded ARM processor.
+**New in v2.2.0 (The Deployment Update):** * **Idempotent Hook Injection:** The deployment script now uses strict `sed` block markers. You can run the installer as many times as you want without duplicating code or leaving ghost processes behind.
+* **Seamless Legacy Upgrades:** Automatically hunts down and safely purges older, un-marked `wgclient` hooks from previous versions (v2.1.2 and below) before installing the new engine.
+* **Firmware 3.0.0.6 (SDN) Routing Fix:** Resolves NAT-PMP timeout errors on the newer Asuswrt-Merlin 3.0.0.6 branches (e.g., RT-AX86U Pro). The script dynamically bridges the isolated `main` routing table to the VPN Director to ensure the router's root shell can successfully reach the ProtonVPN gateway.
 
 ## Features
 
 * **Aggressive NAT Hole-Punching:** Asus VPN Director's strict inbound firewall blindly drops incoming torrent requests. This script dynamically injects precise `iptables` PREROUTING and FORWARD rules to route the port directly to your local PC, guaranteeing maximum upload speeds.
-* **Dynamic TCP Socket Protection:** Automatically injects peer and speed limits into BiglyBT via RPC. This prevents `java.net.SocketException` (buffer space available) crashes on Windows by clamping down global connections when falling back from a high-power desktop VPN tunnel to the router's embedded VPN tunnel.
+* **Dynamic TCP Socket Protection:** Automatically injects peer and speed limits into BiglyBT via RPC. This prevents `java.net.SocketException` crashes on Windows by clamping down global connections when falling back from a high-power desktop VPN tunnel to the router's embedded VPN tunnel.
 * **The "Patient Loop":** Includes a 30-minute automated retry loop. If the router connects to the VPN but the target PC/BiglyBT is offline, the script waits silently and pushes the payload the moment BiglyBT comes online.
-* **BusyBox Native:** Completely compatible with Asuswrt-Merlin's embedded shell. Uses native `awk` to ensure zero silent failures on router hardware.
-* **Non-Destructive Deployment:** Automatically generates collision-proof, chronologically timestamped backups of your existing `wgclient` scripts before injecting new, non-blocking hooks.
+* **BusyBox Native:** Completely compatible with Asuswrt-Merlin's embedded shell. Uses native `awk` and `sed` to ensure zero silent failures on router hardware.
+* **Non-Destructive Deployment:** Automatically generates collision-proof, chronologically timestamped backups of your existing `wgclient` scripts before executing any upgrades.
 
 ## Prerequisites
 

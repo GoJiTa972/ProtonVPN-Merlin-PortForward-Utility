@@ -1,6 +1,6 @@
 #!/bin/sh
 # =================================================================
-# ProtonVPN + BiglyBT Port Forward Deployment (v2.2.1)
+# ProtonVPN + BiglyBT Port Forward Deployment (v2.2.2)
 # Author: GoJiTa972 (Xavier Chamoiseau)
 # =================================================================
 
@@ -38,6 +38,19 @@ else
     logger -t "PortForward" "Error: Config file missing. Aborting."
     exit 1
 fi
+
+# --- GRACEFUL CLEANUP TRAP ---
+cleanup() {
+    if [ -n "$CURRENT_PORT" ]; then
+        logger -t "PortForward" "Termination signal received. Cleaning up iptables rules for port $CURRENT_PORT..."
+        iptables -t nat -D PREROUTING -i wgc$WG_CLIENT_ID -p tcp --dport $CURRENT_PORT -j DNAT --to-destination $PC_IP 2>/dev/null
+        iptables -t nat -D PREROUTING -i wgc$WG_CLIENT_ID -p udp --dport $CURRENT_PORT -j DNAT --to-destination $PC_IP 2>/dev/null
+        iptables -D FORWARD -i wgc$WG_CLIENT_ID -p tcp -d $PC_IP --dport $CURRENT_PORT -j ACCEPT 2>/dev/null
+        iptables -D FORWARD -i wgc$WG_CLIENT_ID -p udp -d $PC_IP --dport $CURRENT_PORT -j ACCEPT 2>/dev/null
+    fi
+    exit 0
+}
+trap cleanup TERM INT
 
 # Allow tunnel to stabilize
 sleep 10
@@ -118,7 +131,7 @@ fi
 
 # Purge legacy unmarked hooks (v2.1.2 and older)
 sed -i '/# --- ProtonVPN Port Forwarding Hook ---/,/^fi/d' /jffs/scripts/wgclient-start
-# Purge any existing marked hooks (v2.2.0+)
+# Purge any existing marked hooks
 sed -i '/# --- BEGIN PROTONVPN PF HOOK ---/,/# --- END PROTONVPN PF HOOK ---/d' /jffs/scripts/wgclient-start
 
 echo "Injecting fresh start hook for wgc$WG_CLIENT_ID..."
@@ -128,7 +141,7 @@ cat << EOF >> /jffs/scripts/wgclient-start
 # Injected by deploy_proton_pf.sh - Do not modify these marker lines
 if [ "\$1" = "$WG_CLIENT_ID" ] || [ "\$1" = "wgc$WG_CLIENT_ID" ]; then
     logger -t "PortForward" "WireGuard wgc$WG_CLIENT_ID starting. Launching background script..."
-    for pid in \$(ps | grep '[p]ort_forward.sh' | awk '{print \$1}'); do kill -9 \$pid 2>/dev/null; done
+    for pid in \$(ps | grep '[p]ort_forward.sh' | awk '{print \$1}'); do kill -15 \$pid 2>/dev/null; done
     nohup /jffs/scripts/port_forward.sh > /dev/null 2>&1 &
 fi
 # --- END PROTONVPN PF HOOK ---
@@ -143,7 +156,7 @@ fi
 
 # Purge legacy unmarked hooks (v2.1.2 and older)
 sed -i '/# --- ProtonVPN Port Forwarding Hook ---/,/^fi/d' /jffs/scripts/wgclient-stop
-# Purge any existing marked hooks (v2.2.0+)
+# Purge any existing marked hooks
 sed -i '/# --- BEGIN PROTONVPN PF HOOK ---/,/# --- END PROTONVPN PF HOOK ---/d' /jffs/scripts/wgclient-stop
 
 echo "Injecting fresh stop hook for wgc$WG_CLIENT_ID..."
@@ -153,7 +166,7 @@ cat << EOF >> /jffs/scripts/wgclient-stop
 # Injected by deploy_proton_pf.sh - Do not modify these marker lines
 if [ "\$1" = "$WG_CLIENT_ID" ] || [ "\$1" = "wgc$WG_CLIENT_ID" ]; then
     logger -t "PortForward" "WireGuard wgc$WG_CLIENT_ID is down. Terminating background script..."
-    for pid in \$(ps | grep '[p]ort_forward.sh' | awk '{print \$1}'); do kill -9 \$pid 2>/dev/null; done
+    for pid in \$(ps | grep '[p]ort_forward.sh' | awk '{print \$1}'); do kill -15 \$pid 2>/dev/null; done
 fi
 # --- END PROTONVPN PF HOOK ---
 EOF

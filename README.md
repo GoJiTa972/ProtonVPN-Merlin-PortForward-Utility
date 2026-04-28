@@ -1,11 +1,19 @@
-# Asuswrt-Merlin ProtonVPN Port Forwarding Auto-Deploy (v2.3.0)
+# Asuswrt-Merlin ProtonVPN Port Forwarding Auto-Deploy (v3.0.0)
 
-An automated deployment architecture for Asuswrt-Merlin routers. This script dynamically retrieves assigned port forwarding numbers from ProtonVPN's NAT-PMP servers and seamlessly injects them into a local BiglyBT instance via RPC, completely bypassing the Asus VPN Director's split-tunneling inbound firewall limitations.
+An automated deployment architecture for Asuswrt-Merlin routers. This script dynamically retrieves assigned port forwarding numbers from ProtonVPN's NAT-PMP servers and seamlessly injects them into local P2P instances (like BiglyBT) via RPC.
 
-**New in v2.3.0 (The Architecture Update):** * **State-File Architecture:** The script lifecycle has been completely overhauled. It now writes the active forwarded port to a volatile state file (`/var/run/proton_pf_wgcX.port`) and gracefully exits. This permanently eliminates "zombie" background processes.
-* **Bulletproof Firewall Cleanup:** When the VPN connection is toggled off, the `wgclient-stop` hook dynamically reads the state file and cleanly flushes the exact forwarded port from your router's `iptables`. This guarantees zero routing or memory leaks over time.
-* **Idempotent Hook Injection:** The deployment engine uses strict `sed` block markers. You can run the installer safely over existing setups without duplicating code or leaving ghost processes behind. Automatically hunts down and safely purges legacy hooks from previous versions.
-* **Firmware 3.0.0.6 (SDN) Native:** Fully bridges the isolated `main` routing table to the VPN Director to ensure the router's root shell can successfully reach the ProtonVPN gateway on newer Asuswrt-Merlin branches (e.g., RT-AX86U Pro).
+**New in v3.0.0 (Multi-Tenant Architecture):**
+* **Multi-Instance Support:** The deployment engine has been entirely refactored to support multiple independent port forwarding configurations concurrently, mapping multiple PCs across multiple WireGuard interfaces seamlessly.
+* **Automated Data Migration:** Upgrading from v2.3.0 is completely seamless! The deployment script automatically detects old "flat" configuration files and dynamically migrates your existing credentials into the new array-based multi-tenant format.
+* **Smart PID Management & Deduplication:** Avoids generic `killall` commands by managing instance-specific processes, ensuring one interface toggle doesn't interfere with another. It also intelligently groups and deduplicates RPC API targets.
+
+> [!WARNING]
+> **Important Upgrade Notice:** When upgrading or migrating to v3.0.0, **you must ensure all WireGuard interfaces involved are DISCONNECTED (toggled off) prior to running the deployment.** If you have ongoing active connections during the upgrade, the automated legacy cleanup will fail to correctly identify and purge the old routing rules, which may lead to unpredictable firewall behavior.
+
+**New in v2.3.0 (The Architecture Update):**
+* **State-File Architecture:** The script lifecycle writes the active forwarded port to a volatile state file (`/var/run/proton_pf_wgcX_instanceY.port`) and gracefully exits. This permanently eliminates "zombie" background processes.
+* **Bulletproof Firewall Cleanup:** Cleanly flushes the exact forwarded port from your router's `iptables` guaranteeing zero routing or memory leaks.
+* **Firmware 3.0.0.6 (SDN) Native:** Bridges the isolated `main` routing table to the VPN Director to ensure the router can reach the ProtonVPN gateway on newer Asuswrt-Merlin branches.
 
 ## Features
 
@@ -39,7 +47,7 @@ Secure the file so your credentials aren't exposed:
 chmod 600 /jffs/scripts/.biglybt_config
 ```
 
-**Note:** Ensure you define `WG_CLIENT_ID` (e.g., `4` for `wgc4`) in your config file so the deployment script knows which interface to hook into!
+**Note:** Ensure you define the `INSTANCE_IDS` array and correctly map `PF_X_WG_CLIENT_ID` for each instance in your config file so the deployment script knows which interfaces to hook into!
 
 ### 2. Deploy
 Transfer the main script to your router via SCP:

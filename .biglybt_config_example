@@ -1,28 +1,52 @@
-# ==========================================
-# ProtonVPN + BiglyBT Configuration Template
-# ==========================================
+# =================================================================
+# ProtonVPN + BiglyBT Multi-Tenant Configuration Template
+# =================================================================
 
-# BiglyBT Web Remote (RPC) Credentials
-RPC_USER="your_username"
-RPC_PASS="your_password"
+# Define the list of active instance identifiers
+# For example, to enable two instances, use: INSTANCES="1 2"
+INSTANCES="1"
 
-# BiglyBT Target Machine
-PC_IP="192.168.1.100"
-RPC_PORT="9091"
-RPC_URL="http://$PC_IP:$RPC_PORT/transmission/rpc"
-
-# ProtonVPN Network Settings
-# The internal WireGuard gateway (ProtonVPN standard is 10.2.0.1)
-VPN_GW="10.2.0.1"
+# =================================================================
+# Instance 1 Configuration
+# =================================================================
 
 # Asus WireGuard Client ID (e.g., "4" for wgc4, "1" for wgc1)
-WG_CLIENT_ID="4"
+PF_1_WG_CLIENT_ID="4"
+
+# The internal WireGuard gateway (ProtonVPN standard is 10.2.0.1)
+PF_1_VPN_GW="10.2.0.1"
+
+# BiglyBT Web Remote (RPC) Credentials
+PF_1_RPC_USER="your_username"
+PF_1_RPC_PASS="your_password"
+
+# BiglyBT Target Machine
+PF_1_PC_IP="192.168.1.100"
+PF_1_RPC_PORT="9091"
+PF_1_RPC_SCHEME="https"
 
 # --- Router Mode Session Limits ---
 # These limits are applied to prevent the Asus router and Windows TCP stack 
 # from crashing due to socket exhaustion while on the VPN.
-# Leave a variable commented out (#) to ignore it.
-LIMIT_GLOBAL="200"
-LIMIT_PER_TORRENT="50"
-LIMIT_UP_KBPS="2000"
-LIMIT_UP_ENABLED="true"
+# Leave a variable empty (="") to ignore it.
+PF_1_LIMIT_GLOBAL="200"
+PF_1_LIMIT_PER_TORRENT="50"
+PF_1_LIMIT_UP_KBPS="2000"
+PF_1_LIMIT_UP_ENABLED="true"
+
+# =================================================================
+# Instance 2 Configuration (Example - disabled by default)
+# Add "2" to INSTANCES="1" above to enable
+# =================================================================
+
+PF_2_WG_CLIENT_ID="5"
+PF_2_VPN_GW="10.2.0.1"
+PF_2_RPC_USER="your_username_2"
+PF_2_RPC_PASS="your_password_2"
+PF_2_PC_IP="192.168.1.105"
+PF_2_RPC_PORT="9091"
+PF_2_RPC_SCHEME="https"
+PF_2_LIMIT_GLOBAL="200"
+PF_2_LIMIT_PER_TORRENT="50"
+PF_2_LIMIT_UP_KBPS="2000"
+PF_2_LIMIT_UP_ENABLED="true"

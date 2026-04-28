@@ -18,3 +18,4 @@ Thumbs.db
 
 # Sensitive local config (Crucial: never commit the real config)
 .biglybt_config
+debuglog.txt

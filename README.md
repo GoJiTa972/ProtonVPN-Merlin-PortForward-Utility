@@ -18,8 +18,8 @@ An automated deployment architecture for Asuswrt-Merlin routers. This script dyn
 ## Features
 
 * **Aggressive NAT Hole-Punching:** Asus VPN Director's strict inbound firewall blindly drops incoming torrent requests. This script dynamically injects precise `iptables` PREROUTING and FORWARD rules to route the port directly to your local PC, guaranteeing maximum upload speeds.
-* **Dynamic TCP Socket Protection:** Automatically injects peer and speed limits into BiglyBT via RPC. This prevents `java.net.SocketException` crashes on Windows by clamping down global connections when falling back from a high-power desktop VPN tunnel to the router's embedded VPN tunnel.
-* **The "Patient Loop":** Includes a 30-minute automated retry loop. If the router connects to the VPN but the target PC/BiglyBT is offline, the script waits silently and pushes the payload the moment BiglyBT comes online, then safely terminates itself.
+* **Dynamic TCP Socket Protection (Transmission API Compliant Clients):** For fully Transmission API-compliant clients, the script can automatically inject peer and speed limits via RPC. This prevents `java.net.SocketException` crashes on Windows by clamping down global connections when falling back from a high-power desktop VPN tunnel to the router's embedded VPN tunnel. *(Note: BiglyBT's Web Remote plugin currently only fully supports the port forwarding parameter).*
+* **The "Patient Loop":** Includes a 30-minute automated retry loop. If the router connects to the VPN but the target PC/BitTorrent client is offline, the script waits silently and pushes the payload the moment it comes online, then safely terminates itself.
 * **BusyBox Native:** Completely compatible with Asuswrt-Merlin's embedded shell. Uses native `awk` and `sed` to ensure zero silent failures on router hardware.
 * **Non-Destructive Deployment:** Automatically generates collision-proof, chronologically timestamped backups of your existing `wgclient` scripts before executing any upgrades.
 
@@ -75,7 +75,7 @@ Look for: `PortForward: BiglyBT API (HTTP: 200) limits applied | Firewall routed
 ## The "Hybrid" Workflow (Burst vs. Router Mode)
 This utility perfectly supports users who switch between the native desktop ProtonVPN app and the Asus router VPN:
 1. **Burst Mode (Desktop App ON):** Use your PC's desktop CPU to handle massive peer connections and encryption overhead for high-speed downloads without limits.
-2. **Router Mode (Desktop App OFF):** Let Windows automatically fall back to the Asus router gateway. The router establishes the tunnel, runs this script, forwards the incoming port, and explicitly clamps BiglyBT's active connections down to a safe limit (e.g., 200 peers) so your router and Windows TCP stack can handle passive 24/7 background seeding without crashing.
+2. **Router Mode (Desktop App OFF):** Let Windows automatically fall back to the Asus router gateway. The router establishes the tunnel, runs this script, and forwards the incoming port. *(For fully compliant RPC clients, it can also clamp active connections down to a safe limit so your router and Windows TCP stack can handle passive 24/7 background seeding without crashing).*
 
 ## Maintenance & Compatibility
 

@@ -1,0 +1,19 @@
+@{
+    # Scheme (https or http) - Defaults to https
+    BiglyBTScheme = "https"
+
+    # IP Address of your PC running BiglyBT (usually localhost)
+    BiglyBTIp = "127.0.0.1"
+    
+    # Port of the BiglyBT Web Remote (Transmission RPC) plugin
+    BiglyBTPort = 9091
+    
+    # Credentials for the BiglyBT Web Remote
+    BiglyBTUser = "admin"
+    BiglyBTPass = "password"
+    
+    # Optional: Force a specific network adapter name or description
+    # If left blank, the script will automatically try to find the ProtonVPN gateway.
+    # E.g., "ProtonVPN Tunnel" or "ProtonVPN TAP-Windows Adapter"
+    ProtonVpnAdapterName = ""
+}

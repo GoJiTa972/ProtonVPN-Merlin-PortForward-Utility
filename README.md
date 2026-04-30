@@ -72,10 +72,11 @@ grep "PortForward" /tmp/syslog.log
 
 Look for: `PortForward: BiglyBT API (HTTP: 200) limits applied | Firewall routed port XXXXX to 192.168.1.XXX.`
 
-## The "Hybrid" Workflow (Burst vs. Router Mode)
+## The "Hybrid" Workflow (Desktop vs. Router)
 This utility perfectly supports users who switch between the native desktop ProtonVPN app and the Asus router VPN:
-1. **Burst Mode (Desktop App ON):** Use your PC's desktop CPU to handle massive peer connections and encryption overhead for high-speed downloads without limits.
-2. **Router Mode (Desktop App OFF):** Let Windows automatically fall back to the Asus router gateway. The router establishes the tunnel, runs this script, and forwards the incoming port. *(For fully compliant RPC clients, it can also clamp active connections down to a safe limit so your router and Windows TCP stack can handle passive 24/7 background seeding without crashing).*
+1. **Desktop Native Mode (App ON):** Use your PC's desktop CPU to handle massive peer connections and encryption overhead for high-speed downloads.
+   - **Desktop Automation:** We have included a native Windows PowerShell script (`scripts/windows/Sync-ProtonPortBiglyBT.ps1`) to automatically fetch your active port! Instead of manually typing in the port from the ProtonVPN Windows app, simply configure `.windows_config.psd1` and run the script. It natively queries the local VPN gateway via NAT-PMP and pushes the port directly to BiglyBT.
+2. **Router Mode (App OFF):** Let Windows automatically fall back to the Asus router gateway. The router establishes the tunnel, runs this script, and forwards the incoming port to your PC. *(For fully compliant RPC clients, it can also clamp active connections down to a safe limit so your router and Windows TCP stack can handle passive 24/7 background seeding without crashing).*
 
 ## Maintenance & Compatibility
 

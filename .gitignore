@@ -18,4 +18,5 @@ Thumbs.db
 
 # Sensitive local config (Crucial: never commit the real config)
 .biglybt_config
+.windows_config.psd1
 debuglog.txt

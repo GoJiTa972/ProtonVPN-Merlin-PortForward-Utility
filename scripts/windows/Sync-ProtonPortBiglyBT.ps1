@@ -100,9 +100,9 @@ try {
     exit 1
 }
 
-# 4. Push the Port to BiglyBT RPC
+# 4. Push the Port to Transmission RPC
 if ($MappedPort) {
-    Write-Host "[*] Pushing port $MappedPort to BiglyBT..."
+    Write-Host "[*] Pushing port $MappedPort to Transmission RPC client..."
     
     $RpcScheme = if ($Config.BiglyBTScheme) { $Config.BiglyBTScheme } else { "https" }
     $RpcUrl = "${RpcScheme}://$($Config.BiglyBTIp):$($Config.BiglyBTPort)/transmission/rpc"
@@ -123,7 +123,7 @@ if ($MappedPort) {
             exit 1
         }
     } catch {
-        Write-Host "[-] Failed to connect to BiglyBT RPC: $_" -ForegroundColor Red
+        Write-Host "[-] Failed to connect to Transmission RPC: $_" -ForegroundColor Red
         exit 1
     }
 
@@ -147,14 +147,14 @@ if ($MappedPort) {
         $ResponseOutput = curl.exe -k -s -w "%{http_code}" --connect-timeout 3 -u $AuthString -H "X-Transmission-Session-Id: $SessionId" -H "Content-Type: application/json" -H "Accept: application/json" -d "$JsonPayload" $RpcUrl
         
         if ($ResponseOutput -match "200$") {
-            Write-Host "[+] BiglyBT updated successfully! Now listening on port $MappedPort." -ForegroundColor Green
+            Write-Host "[+] Transmission RPC client updated successfully! Now listening on port $MappedPort." -ForegroundColor Green
             Write-Host "    Response: $ResponseOutput" -ForegroundColor DarkGray
         } else {
-            Write-Host "[-] BiglyBT RPC error or unexpected status code." -ForegroundColor Red
+            Write-Host "[-] Transmission RPC error or unexpected status code." -ForegroundColor Red
             Write-Host "    Output: $ResponseOutput" -ForegroundColor DarkGray
         }
     } catch {
-        Write-Host "[-] Failed to send payload to BiglyBT: $_" -ForegroundColor Red
+        Write-Host "[-] Failed to send payload to Transmission RPC client: $_" -ForegroundColor Red
         exit 1
     }
 }

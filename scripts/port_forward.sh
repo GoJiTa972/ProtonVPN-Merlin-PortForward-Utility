@@ -58,7 +58,7 @@ fi
 CURRENT_PORT=$(natpmpc -a 1 0 udp 60 -g "$VPN_GW" | grep -i "Mapped public port" | awk '{print $4}')
 
 if [ -n "$CURRENT_PORT" ]; then
-    logger -t "PortForward" "[Instance $INSTANCE_ID] Successfully pulled port: $CURRENT_PORT. Waiting for BiglyBT... (URL: $RPC_URL, User: $RPC_USER)"
+    logger -t "PortForward" "[Instance $INSTANCE_ID] Successfully pulled port: $CURRENT_PORT. Waiting for Transmission RPC client... (URL: $RPC_URL, User: $RPC_USER)"
     
     ATTEMPT=0
     MAX_ATTEMPTS=60
@@ -80,7 +80,7 @@ if [ -n "$CURRENT_PORT" ]; then
             
             PAYLOAD='{"method":"session-set","arguments":{'$ARGUMENTS'}}'
 
-            # Push the port and limits to BiglyBT RPC
+            # Push the port and limits to Transmission RPC
             HTTP_CODE=$(curl -k -s -o /tmp/biglybt_rpc_response_${INSTANCE_ID}.json -w "%{http_code}" --connect-timeout 3 -u "$RPC_USER:$RPC_PASS" -H "X-Transmission-Session-Id: $TR_SESSION" -H "Content-Type: application/json" -H "Accept: application/json" -d "$PAYLOAD" "$RPC_URL")
             BODY=$(cat /tmp/biglybt_rpc_response_${INSTANCE_ID}.json 2>/dev/null | tr -d '\n' | cut -c 1-100)
             
@@ -101,7 +101,7 @@ if [ -n "$CURRENT_PORT" ]; then
             # Save the active port to a volatile run file so the stop hook can clean it up later
             echo "$CURRENT_PORT" > "/var/run/proton_pf_wgc${WG_CLIENT_ID}_instance${INSTANCE_ID}.port"
             
-            logger -t "PortForward" "[Instance $INSTANCE_ID] BiglyBT API (HTTP: $HTTP_CODE) limits applied | Firewall routed port $CURRENT_PORT to $PC_IP. Response: $BODY"
+            logger -t "PortForward" "[Instance $INSTANCE_ID] Transmission RPC API (HTTP: $HTTP_CODE) limits applied | Firewall routed port $CURRENT_PORT to $PC_IP. Response: $BODY"
             break
         else
             DEBUG_SNIPPET=$(echo "$CURL_OUTPUT" | head -n 3 | tr '\n' ' ' | cut -c 1-150)
@@ -113,7 +113,7 @@ if [ -n "$CURRENT_PORT" ]; then
     done
 
     if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
-        logger -t "PortForward" "[Instance $INSTANCE_ID] Gave up waiting for BiglyBT after 30 minutes."
+        logger -t "PortForward" "[Instance $INSTANCE_ID] Gave up waiting for Transmission RPC client after 30 minutes."
     fi
 else
     logger -t "PortForward" "[Instance $INSTANCE_ID] Failed to retrieve port from natpmpc."

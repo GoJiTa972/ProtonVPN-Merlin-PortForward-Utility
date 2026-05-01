@@ -1,2 +1,6 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Enforce Linux line endings (LF) for router scripts and configs, even when cloned on Windows
+*.sh text eol=lf
+.biglybt_config* text eol=lf

@@ -6,6 +6,12 @@
 # For example, to enable two instances, use: INSTANCES="1 2"
 INSTANCES="1"
 
+# --- Logging Level ---
+# PF_LOG_LEVEL controls the verbosity of the background daemon in the router's syslog.
+# "INFO"  (Default) - Only logs critical events (port changes, errors, etc.). Keeps your syslog clean.
+# "DEBUG" - Logs the 45-second heartbeat keep-alives. Use this only for troubleshooting.
+PF_LOG_LEVEL="INFO"
+
 # =================================================================
 # Instance 1 Configuration
 # =================================================================

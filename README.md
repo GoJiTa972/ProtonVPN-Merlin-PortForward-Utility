@@ -2,10 +2,13 @@
 
 An automated deployment architecture for Asuswrt-Merlin routers. This script dynamically retrieves assigned port forwarding numbers from ProtonVPN's NAT-PMP servers and seamlessly injects them into local P2P instances (like BiglyBT) via RPC.
 
-**New in v3.0.0 (Multi-Tenant Architecture):**
+**New in v3.0.0 (Multi-Tenant Architecture & Persistent Daemon):**
+* **Persistent NAT-PMP Daemon:** Completely eliminates the Windows socket exhaustion bug! The architecture abandons 5-minute cron jobs in favor of a resilient 45-second background daemon that aggressively renews ProtonVPN's strict 60-second lease, ensuring the port never drops and connections safely garbage-collect.
 * **Multi-Instance Support:** The deployment engine has been entirely refactored to support multiple independent port forwarding configurations concurrently, mapping multiple PCs across multiple WireGuard interfaces seamlessly.
-* **Automated Data Migration:** Upgrading from v2.3.0 is completely seamless! The deployment script automatically detects old "flat" configuration files and dynamically migrates your existing credentials into the new array-based multi-tenant format.
-* **Smart PID Management & Deduplication:** Avoids generic `killall` commands by managing instance-specific processes, ensuring one interface toggle doesn't interfere with another. It also intelligently groups and deduplicates RPC API targets.
+* **Smart PID Management:** Avoids generic `killall` commands by tracking daemon PIDs (`/var/run/proton_pf_wgcX.pid`). The script self-terminates if the WireGuard interface drops, preventing zombie processes.
+* **Namespaced Logging:** Includes a new `PF_LOG_LEVEL` configuration variable to silence repetitive 45-second keep-alive logs from the Asuswrt syslog while retaining critical failure/success messages.
+* **Cross-Platform Safety:** Enforces `LF` line endings for all shell scripts via `.gitattributes`, permanently removing the need to run `dos2unix` when pushing from Windows to the Asus router.
+* **Automated Data Migration:** Upgrading from v2.3.0 is completely seamless! The deployment script automatically migrates legacy configuration files into the new array-based multi-tenant format.
 
 > [!WARNING]
 > **Important Upgrade Notice:** When upgrading or migrating to v3.0.0, **you must ensure all WireGuard interfaces involved are DISCONNECTED (toggled off) prior to running the deployment.** If you have ongoing active connections during the upgrade, the automated legacy cleanup will fail to correctly identify and purge the old routing rules, which may lead to unpredictable firewall behavior.

@@ -41,10 +41,11 @@ LIMIT_UP_KBPS=$(echo "$LIMIT_UP_KBPS" | tr -d '\r')
 LIMIT_UP_ENABLED=$(echo "$LIMIT_UP_ENABLED" | tr -d '\r')
 
 RPC_URL="${RPC_SCHEME}://$PC_IP:$RPC_PORT/transmission/rpc"
+STATE_FILE="/var/run/proton_pf_wgc${WG_CLIENT_ID}_instance${INSTANCE_ID}.port"
+PF_LOG_LEVEL=$(echo "${PF_LOG_LEVEL:-INFO}" | tr -d '\r')
 
-# Allow tunnel to stabilize
+# Allow tunnel to stabilize on startup
 sleep 10
-
 # --- FIRMWARE 3.0.0.6 ROUTING FIX ---
 # Ensure the router's main routing table can reach the VPN gateway
 ip route add "$VPN_GW" dev "wgc$WG_CLIENT_ID" 2>/dev/null
@@ -55,66 +56,99 @@ if ! which natpmpc >/dev/null 2>&1; then
     exit 1
 fi
 
-CURRENT_PORT=$(natpmpc -a 1 0 udp 60 -g "$VPN_GW" | grep -i "Mapped public port" | awk '{print $4}')
-
-if [ -n "$CURRENT_PORT" ]; then
-    logger -t "PortForward" "[Instance $INSTANCE_ID] Successfully pulled port: $CURRENT_PORT. Waiting for Transmission RPC client... (URL: $RPC_URL, User: $RPC_USER)"
-    
-    ATTEMPT=0
-    MAX_ATTEMPTS=60
-    
-    # 30-Minute Patient Loop
-    while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
-        CURL_OUTPUT=$(curl -k -s -S -i --connect-timeout 3 -u "$RPC_USER:$RPC_PASS" "$RPC_URL" 2>&1)
-        TR_SESSION=$(echo "$CURL_OUTPUT" | grep -i "X-Transmission-Session-Id:" | awk '{print $2}' | tr -d '\r')
-            
-        if [ -n "$TR_SESSION" ]; then
-            
-            # --- BUILD DYNAMIC JSON PAYLOAD ---
-            ARGUMENTS='"peer-port": '$CURRENT_PORT
-            
-            [ -n "$LIMIT_GLOBAL" ] && ARGUMENTS="${ARGUMENTS}, \"peer-limit-global\": $LIMIT_GLOBAL"
-            [ -n "$LIMIT_PER_TORRENT" ] && ARGUMENTS="${ARGUMENTS}, \"peer-limit-per-torrent\": $LIMIT_PER_TORRENT"
-            [ -n "$LIMIT_UP_KBPS" ] && ARGUMENTS="${ARGUMENTS}, \"speed-limit-up\": $LIMIT_UP_KBPS"
-            [ -n "$LIMIT_UP_ENABLED" ] && ARGUMENTS="${ARGUMENTS}, \"speed-limit-up-enabled\": $LIMIT_UP_ENABLED"
-            
-            PAYLOAD='{"method":"session-set","arguments":{'$ARGUMENTS'}}'
-
-            # Push the port and limits to Transmission RPC
-            HTTP_CODE=$(curl -k -s -o /tmp/biglybt_rpc_response_${INSTANCE_ID}.json -w "%{http_code}" --connect-timeout 3 -u "$RPC_USER:$RPC_PASS" -H "X-Transmission-Session-Id: $TR_SESSION" -H "Content-Type: application/json" -H "Accept: application/json" -d "$PAYLOAD" "$RPC_URL")
-            BODY=$(cat /tmp/biglybt_rpc_response_${INSTANCE_ID}.json 2>/dev/null | tr -d '\n' | cut -c 1-100)
-            
-            # --- FIREWALL HOLE PUNCH ---
-            # Flush existing rules to prevent duplicates
-            iptables -t nat -D PREROUTING -i wgc$WG_CLIENT_ID -p tcp --dport $CURRENT_PORT -j DNAT --to-destination $PC_IP 2>/dev/null
-            iptables -t nat -D PREROUTING -i wgc$WG_CLIENT_ID -p udp --dport $CURRENT_PORT -j DNAT --to-destination $PC_IP 2>/dev/null
-            iptables -D FORWARD -i wgc$WG_CLIENT_ID -p tcp -d $PC_IP --dport $CURRENT_PORT -j ACCEPT 2>/dev/null
-            iptables -D FORWARD -i wgc$WG_CLIENT_ID -p udp -d $PC_IP --dport $CURRENT_PORT -j ACCEPT 2>/dev/null
-
-            # Insert precise routing rules for VPN Director compatibility
-            iptables -t nat -I PREROUTING -i wgc$WG_CLIENT_ID -p tcp --dport $CURRENT_PORT -j DNAT --to-destination $PC_IP
-            iptables -t nat -I PREROUTING -i wgc$WG_CLIENT_ID -p udp --dport $CURRENT_PORT -j DNAT --to-destination $PC_IP
-            iptables -I FORWARD -i wgc$WG_CLIENT_ID -p tcp -d $PC_IP --dport $CURRENT_PORT -j ACCEPT
-            iptables -I FORWARD -i wgc$WG_CLIENT_ID -p udp -d $PC_IP --dport $CURRENT_PORT -j ACCEPT
-            
-            # --- SAVE STATE ---
-            # Save the active port to a volatile run file so the stop hook can clean it up later
-            echo "$CURRENT_PORT" > "/var/run/proton_pf_wgc${WG_CLIENT_ID}_instance${INSTANCE_ID}.port"
-            
-            logger -t "PortForward" "[Instance $INSTANCE_ID] Transmission RPC API (HTTP: $HTTP_CODE) limits applied | Firewall routed port $CURRENT_PORT to $PC_IP. Response: $BODY"
-            break
-        else
-            DEBUG_SNIPPET=$(echo "$CURL_OUTPUT" | head -n 3 | tr '\n' ' ' | cut -c 1-150)
-            logger -t "PortForward" "[Instance $INSTANCE_ID] (Attempt $ATTEMPT) Failed to get session ID. Curl output: $DEBUG_SNIPPET"
-        fi
-        
-        sleep 30
-        ATTEMPT=$((ATTEMPT+1))
-    done
-
-    if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
-        logger -t "PortForward" "[Instance $INSTANCE_ID] Gave up waiting for Transmission RPC client after 30 minutes."
+while true; do
+    # Safety check: exit if interface is gone
+    if ! ip link show "wgc$WG_CLIENT_ID" >/dev/null 2>&1; then
+        logger -t "PortForward" "[Instance $INSTANCE_ID] Interface wgc$WG_CLIENT_ID not found. Exiting daemon."
+        exit 0
     fi
-else
-    logger -t "PortForward" "[Instance $INSTANCE_ID] Failed to retrieve port from natpmpc."
-fi
+
+    # Request a 60-second port lease from ProtonVPN via NAT-PMP.
+    # Note: 60 seconds is the strict maximum lifetime ProtonVPN allows for NAT-PMP leases.
+    CURRENT_PORT=$(natpmpc -a 1 0 udp 60 -g "$VPN_GW" | grep -i "Mapped public port" | awk '{print $4}')
+
+    if [ -z "$CURRENT_PORT" ]; then
+        logger -t "PortForward" "[Instance $INSTANCE_ID] Failed to retrieve port from natpmpc. Retaining current state and retrying in 45s."
+    else
+        OLD_PORT=""
+        if [ -f "$STATE_FILE" ]; then
+            OLD_PORT=$(cat "$STATE_FILE")
+        fi
+
+        if [ "$CURRENT_PORT" = "$OLD_PORT" ]; then
+            if [ "$PF_LOG_LEVEL" = "DEBUG" ]; then
+                logger -t "PortForward" "[Instance $INSTANCE_ID] Keep-alive successful. Port $CURRENT_PORT is unchanged."
+            fi
+        else
+            logger -t "PortForward" "[Instance $INSTANCE_ID] Port changed from '${OLD_PORT:-None}' to '$CURRENT_PORT'. Waiting for Transmission RPC client... (URL: $RPC_URL, User: $RPC_USER)"
+            
+            ATTEMPT=0
+            MAX_ATTEMPTS=6 # 1 minute total for fail-fast
+            SUCCESS=0
+            
+            while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+                CURL_OUTPUT=$(curl -k -s -S -i --connect-timeout 3 -u "$RPC_USER:$RPC_PASS" "$RPC_URL" 2>&1)
+                TR_SESSION=$(echo "$CURL_OUTPUT" | grep -i "X-Transmission-Session-Id:" | awk '{print $2}' | tr -d '\r')
+                    
+                if [ -n "$TR_SESSION" ]; then
+                    
+                    # --- BUILD DYNAMIC JSON PAYLOAD ---
+                    ARGUMENTS='"peer-port": '$CURRENT_PORT
+                    
+                    [ -n "$LIMIT_GLOBAL" ] && ARGUMENTS="${ARGUMENTS}, \"peer-limit-global\": $LIMIT_GLOBAL"
+                    [ -n "$LIMIT_PER_TORRENT" ] && ARGUMENTS="${ARGUMENTS}, \"peer-limit-per-torrent\": $LIMIT_PER_TORRENT"
+                    [ -n "$LIMIT_UP_KBPS" ] && ARGUMENTS="${ARGUMENTS}, \"speed-limit-up\": $LIMIT_UP_KBPS"
+                    [ -n "$LIMIT_UP_ENABLED" ] && ARGUMENTS="${ARGUMENTS}, \"speed-limit-up-enabled\": $LIMIT_UP_ENABLED"
+                    
+                    PAYLOAD='{"method":"session-set","arguments":{'$ARGUMENTS'}}'
+
+                    # Push the port and limits to Transmission RPC
+                    HTTP_CODE=$(curl -k -s -o /tmp/biglybt_rpc_response_${INSTANCE_ID}.json -w "%{http_code}" --connect-timeout 3 -u "$RPC_USER:$RPC_PASS" -H "X-Transmission-Session-Id: $TR_SESSION" -H "Content-Type: application/json" -H "Accept: application/json" -d "$PAYLOAD" "$RPC_URL")
+                    BODY=$(cat /tmp/biglybt_rpc_response_${INSTANCE_ID}.json 2>/dev/null | tr -d '\n' | cut -c 1-100)
+                    
+                    # --- FIREWALL HOLE PUNCH ---
+                    # Flush existing rules using OLD_PORT to prevent stale rules
+                    if [ -n "$OLD_PORT" ]; then
+                        iptables -t nat -D PREROUTING -i wgc$WG_CLIENT_ID -p tcp --dport $OLD_PORT -j DNAT --to-destination $PC_IP 2>/dev/null
+                        iptables -t nat -D PREROUTING -i wgc$WG_CLIENT_ID -p udp --dport $OLD_PORT -j DNAT --to-destination $PC_IP 2>/dev/null
+                        iptables -D FORWARD -i wgc$WG_CLIENT_ID -p tcp -d $PC_IP --dport $OLD_PORT -j ACCEPT 2>/dev/null
+                        iptables -D FORWARD -i wgc$WG_CLIENT_ID -p udp -d $PC_IP --dport $OLD_PORT -j ACCEPT 2>/dev/null
+                    fi
+
+                    # Insert precise routing rules for VPN Director compatibility
+                    iptables -t nat -I PREROUTING -i wgc$WG_CLIENT_ID -p tcp --dport $CURRENT_PORT -j DNAT --to-destination $PC_IP
+                    iptables -t nat -I PREROUTING -i wgc$WG_CLIENT_ID -p udp --dport $CURRENT_PORT -j DNAT --to-destination $PC_IP
+                    iptables -I FORWARD -i wgc$WG_CLIENT_ID -p tcp -d $PC_IP --dport $CURRENT_PORT -j ACCEPT
+                    iptables -I FORWARD -i wgc$WG_CLIENT_ID -p udp -d $PC_IP --dport $CURRENT_PORT -j ACCEPT
+                    
+                    # --- SAVE STATE ---
+                    echo "$CURRENT_PORT" > "$STATE_FILE"
+                    
+                    logger -t "PortForward" "[Instance $INSTANCE_ID] Transmission RPC API (HTTP: $HTTP_CODE) limits applied | Firewall routed port $CURRENT_PORT to $PC_IP. Response: $BODY"
+                    SUCCESS=1
+                    break
+                else
+                    if [ "$PF_LOG_LEVEL" = "DEBUG" ]; then
+                        DEBUG_SNIPPET=$(echo "$CURL_OUTPUT" | head -n 3 | tr '\n' ' ' | cut -c 1-150)
+                        logger -t "PortForward" "[Instance $INSTANCE_ID] (Attempt $ATTEMPT) Failed to get session ID. Curl output: $DEBUG_SNIPPET"
+                    fi
+                fi
+                
+                sleep 10
+                ATTEMPT=$((ATTEMPT+1))
+            done
+
+            if [ $SUCCESS -eq 0 ]; then
+                logger -t "PortForward" "[Instance $INSTANCE_ID] Gave up waiting for Transmission RPC client after $MAX_ATTEMPTS attempts. Will try again on next daemon cycle."
+            fi
+        fi
+    fi
+
+    # --- The Heartbeat ---
+    # ProtonVPN strictly closes the NAT-PMP forwarded port after exactly 60 seconds.
+    # To prevent BiglyBT from dropping to a 0-peer passive mode and suffocating the 
+    # OS socket pool with outbound TCP SYN compensation attempts, we MUST securely 
+    # renew the lease before it expires. Sleeping for 45 seconds ensures a continuous 
+    # port forward without spamming the ProtonVPN gateway.
+    sleep 45
+done

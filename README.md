@@ -1,4 +1,4 @@
-# Asuswrt-Merlin ProtonVPN Port Forwarding Auto-Deploy (v3.0.0)
+# Asuswrt-Merlin ProtonVPN Port Forwarding Auto-Deploy (v3.0.1)
 
 An automated deployment architecture for Asuswrt-Merlin routers. This script dynamically retrieves assigned port forwarding numbers from ProtonVPN's NAT-PMP servers and seamlessly injects them into local P2P instances (like BiglyBT) via RPC.
 

@@ -80,7 +80,7 @@ while true; do
                 logger -t "PortForward" "[Instance $INSTANCE_ID] Keep-alive successful. Port $CURRENT_PORT is unchanged."
             fi
         else
-            logger -t "PortForward" "[Instance $INSTANCE_ID] Port changed from '${OLD_PORT:-None}' to '$CURRENT_PORT'. Waiting for Transmission RPC client... (URL: $RPC_URL, User: $RPC_USER)"
+            logger -t "PortForward" "[Instance $INSTANCE_ID] Port changed from ${OLD_PORT:-None} to $CURRENT_PORT. Waiting for Transmission RPC client... (URL: $RPC_URL, User: $RPC_USER)"
             
             ATTEMPT=0
             MAX_ATTEMPTS=6 # 1 minute total for fail-fast
@@ -104,7 +104,13 @@ while true; do
 
                     # Push the port and limits to Transmission RPC
                     HTTP_CODE=$(curl -k -s -o /tmp/biglybt_rpc_response_${INSTANCE_ID}.json -w "%{http_code}" --connect-timeout 3 -u "$RPC_USER:$RPC_PASS" -H "X-Transmission-Session-Id: $TR_SESSION" -H "Content-Type: application/json" -H "Accept: application/json" -d "$PAYLOAD" "$RPC_URL")
-                    BODY=$(cat /tmp/biglybt_rpc_response_${INSTANCE_ID}.json 2>/dev/null | tr -d '\n' | cut -c 1-100)
+                    RPC_RESULT=$(grep -o '"result":"[^"]*"' /tmp/biglybt_rpc_response_${INSTANCE_ID}.json 2>/dev/null | cut -d'"' -f4 | tr -d '\r')
+                    if [ -n "$RPC_RESULT" ]; then
+                        RESPONSE_LOG="Result: $RPC_RESULT"
+                    else
+                        BODY=$(cat /tmp/biglybt_rpc_response_${INSTANCE_ID}.json 2>/dev/null | tr -d '\r' | tr -d '\n' | cut -c 1-100)
+                        RESPONSE_LOG="Response: $BODY"
+                    fi
                     
                     # --- FIREWALL HOLE PUNCH ---
                     # Flush existing rules using OLD_PORT to prevent stale rules
@@ -124,7 +130,7 @@ while true; do
                     # --- SAVE STATE ---
                     echo "$CURRENT_PORT" > "$STATE_FILE"
                     
-                    logger -t "PortForward" "[Instance $INSTANCE_ID] Transmission RPC API (HTTP: $HTTP_CODE) limits applied | Firewall routed port $CURRENT_PORT to $PC_IP. Response: $BODY"
+                    logger -t "PortForward" "[Instance $INSTANCE_ID] Transmission RPC API (HTTP: $HTTP_CODE) limits applied | Firewall routed port $CURRENT_PORT to $PC_IP. $RESPONSE_LOG"
                     SUCCESS=1
                     break
                 else
